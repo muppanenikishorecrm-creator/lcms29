@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+{% block title %}{{ case.case_id }}{% endblock %}
+{% block page_title %}{{ case.case_id }}{% endblock %}
+
+{% block content %}
+{% set sc = case.status | status_color %}
+{% set pc = case.priority | priority_color %}
+
+<!-- Case Header -->
+<div class="card p-5 mb-5">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-3 mb-2">
+        <h1 class="text-xl font-bold text-gray-900">{{ case.title }}</h1>
+        <span class="badge bg-{{ sc }}-100 text-{{ sc }}-700 text-sm px-3 py-1">{{ case.status }}</span>
+        <span class="badge bg-{{ pc }}-100 text-{{ pc }}-700 text-sm px-3 py-1">{{ case.priority }}</span>
+      </div>
+      <div class="flex flex-wrap gap-4 text-sm text-gray-500">
+        <span><i class="fa-solid fa-hashtag mr-1"></i>{{ case.case_id }}</span>
+        {% if case.case_number %}<span><i class="fa-solid fa-gavel mr-1"></i>{{ case.case_number }}</span>{% endif %}
+        {% if case.state %}<span><i class="fa-solid fa-location-dot mr-1"></i>{{ case.state.name }}</span>{% endif %}
+        {% if case.court %}<span><i class="fa-solid fa-building-columns mr-1"></i>{{ case.court.name }}</span>{% endif %}
+        {% if case.next_hearing_date %}
+          {% set days = case.next_hearing_date | days_from_now %}
+          <span class="{% if days is not none and days < 0 %}text-red-600 font-medium{% elif days is not none and days <= 7 %}text-orange-600 font-medium{% endif %}">
+            <i class="fa-solid fa-calendar-day mr-1"></i>Next hearing: {{ case.next_hearing_date | format_date }}
+            {% if days is not none and days >= 0 and days <= 7 %}({{ days }}d){% endif %}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <!-- Quick status update -->
+      <div x-data="{ open: false }" class="relative">
+        <button @click="open = !open" class="btn-secondary">
+          <i class="fa-solid fa-arrows-rotate"></i> Update Status
+        </button>
+        <div x-show="open" @click.away="open=false" class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1">
+          <form action="/cases/{{ case.id }}/update-status" method="post">
+            {% for s in statuses %}
+            <button type="submit" name="status" value="{{ s }}"
+              class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 {% if case.status == s %}bg-gray-50 text-gray-800 font-medium{% else %}text-gray-700{% endif %}">
+              {{ s }}
+            </button>
+            {% endfor %}
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assignments row -->
+  {% set assignments_by_role = {} %}
+  {% for a in case.assignments %}{% if a.is_active %}{% set _ = assignments_by_role.update({a.role: a.user}) %}{% endif %}{% endfor %}
+  <div class="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
+    {% for role_key, label, icon in [('primary_lawyer','Lawyer','fa-user-tie'),('case_manager','Case Manager','fa-briefcase'),('stakeholder','Stakeholder','fa-shield')] %}
+    {% set u = assignments_by_role.get(role_key) %}
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+        <i class="fa-solid {{ icon }} text-gray-800 text-xs"></i>
+      </div>
+      <div>
+        <div class="text-xs text-gray-400">{{ label }}</div>
+        <div class="text-sm font-medium text-gray-700">{{ u.full_name if u else "Not assigned" }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="card mb-5 overflow-hidden">
+  <div class="flex border-b border-gray-200 overflow-x-auto">
+    {% for t_id, t_label, t_icon in [
+      ('overview','Overview','fa-circle-info'),
+      ('timeline','Timeline','fa-timeline'),
+      ('hearings','Hearings','fa-gavel'),
+      ('actions','Actions','fa-list-check'),
+      ('documents','Documents','fa-file-alt'),
+      ('parties','Parties','fa-users'),
+      ('notes','Notes','fa-note-sticky'),
+      ('outcome','Outcome','fa-flag-checkered'),
+    ] %}
+    <a href="?tab={{ t_id }}"
+      class="flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
+        {% if tab == t_id %}border-gray-300 text-gray-800 bg-gray-50{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+      <i class="fa-solid {{ t_icon }}"></i> {{ t_label }}
+      {% if t_id == 'actions' and actions | selectattr('status','equalto','Overdue') | list | length > 0 %}
+      <span class="bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{{ actions | selectattr('status','equalto','Overdue') | list | length }}</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="p-5">
+
+  <!-- OVERVIEW -->
+  {% if tab == 'overview' %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Case Information</h3>
+      <dl class="space-y-2">
+        {% for label, value in [
+          ('Case Type', case.case_type_rel.name if case.case_type_rel else '—'),
+          ('Category', case.category or '—'),
+          ('Description', case.description or '—'),
+          ('Applicable Act', case.applicable_act or '—'),
+          ('Sections', case.sections or '—'),
+          ('CNR Number', case.cnr_number or '—'),
+          ('FIR Number', case.fir_number or '—'),
+          ('Date Filed', case.date_filed | format_date),
+        ] %}
+        <div class="flex gap-2">
+          <dt class="text-xs text-gray-400 w-32 flex-shrink-0 pt-0.5">{{ label }}</dt>
+          <dd class="text-sm text-gray-700">{{ value }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </div>
+    <div>
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Stats</h3>
+      <div class="grid grid-cols-2 gap-3">
+        {% set stat_items = [
+          (hearings | length, 'Hearings', 'fa-gavel', 'blue'),
+          (actions | length, 'Actions', 'fa-list-check', 'gray'),
+          (documents | length, 'Documents', 'fa-file-alt', 'green'),
+          (actions | selectattr('status','equalto','Overdue') | list | length, 'Overdue', 'fa-exclamation', 'red'),
+        ] %}
+        {% for val, label, icon, color in stat_items %}
+        <div class="bg-{{ color }}-50 border border-{{ color }}-100 rounded-lg p-3">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fa-solid {{ icon }} text-{{ color }}-500 text-sm"></i>
+            <span class="text-xs text-{{ color }}-600 font-medium">{{ label }}</span>
+          </div>
+          <div class="text-2xl font-bold text-{{ color }}-700">{{ val }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if case.outcome %}
+      <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+        <div class="text-xs font-semibold text-emerald-700 mb-1">OUTCOME</div>
+        <div class="text-lg font-bold text-emerald-800">{{ case.outcome }}</div>
+        {% if case.outcome_date %}<div class="text-xs text-emerald-600 mt-1">{{ case.outcome_date | format_date }}</div>{% endif %}
+        {% if case.outcome_notes %}<div class="text-sm text-emerald-700 mt-2">{{ case.outcome_notes }}</div>{% endif %}
+      </div>
+      {% endif %}
+
+      {% if case.status != 'Closed' %}
+      <div class="mt-4 flex flex-wrap gap-2">
+        {% set alerts = [] %}
+        {% if actions | selectattr('status','equalto','Overdue') | list %}{% set _ = alerts.append("Actions overdue") %}{% endif %}
+        {% for alert in alerts %}
+        <div class="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation"></i> {{ alert }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  {% elif tab == 'timeline' %}
+  <div class="relative">
+    {% for entry in timeline %}
+    <div class="flex gap-4 pb-6 relative">
+      <div class="flex flex-col items-center">
+        <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-circle-dot text-gray-800 text-sm"></i>
+        </div>
+        {% if not loop.last %}<div class="w-0.5 bg-gray-200 flex-1 mt-1"></div>{% endif %}
+      </div>
+      <div class="flex-1 pt-1">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-sm font-semibold text-gray-800">{{ entry.event }}</div>
+            {% if entry.description %}<div class="text-sm text-gray-600 mt-0.5">{{ entry.description }}</div>{% endif %}
+            {% if entry.prev_status and entry.new_status %}
+            <div class="flex items-center gap-2 mt-1">
+              <span class="badge bg-gray-100 text-gray-600 text-xs">{{ entry.prev_status }}</span>
+              <i class="fa-solid fa-arrow-right text-gray-400 text-xs"></i>
+              <span class="badge bg-gray-100 text-gray-800 text-xs">{{ entry.new_status }}</span>
+            </div>
+            {% endif %}
+          </div>
+          <div class="text-right flex-shrink-0">
+            <div class="text-xs text-gray-400">{{ entry.created_at | format_date("%d %b %Y, %H:%M") }}</div>
+            {% if entry.user %}<div class="text-xs text-gray-500 mt-0.5">{{ entry.user.full_name }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-400">No timeline entries yet.</div>
+    {% endfor %}
+  </div>
+
+  <!-- HEARINGS -->
+  {% elif tab == 'hearings' %}
+  <div class="flex justify-between items-center mb-4">
+    <h3 class="font-semibold text-gray-700">Hearing History</h3>
+    <button onclick="document.getElementById('add-hearing-modal').classList.remove('hidden')" class="btn-primary">
+      <i class="fa-solid fa-plus"></i> Add Hearing
+    </button>
+  </div>
+  <div class="space-y-3">
+    {% for h in hearings %}
+    <div class="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-sm font-semibold text-gray-800">{{ h.hearing_date | format_date }}</span>
+            {% if h.hearing_type %}<span class="badge bg-blue-100 text-blue-700">{{ h.hearing_type }}</span>{% endif %}
+          </div>
+          {% if h.purpose %}<div class="text-sm text-gray-600">Purpose: {{ h.purpose }}</div>{% endif %}
+          {% if h.outcome %}<div class="text-sm text-gray-700 mt-1"><span class="font-medium">Outcome:</span> {{ h.outcome }}</div>{% endif %}
+          {% if h.notes %}<div class="text-xs text-gray-500 mt-1">{{ h.notes }}</div>{% endif %}
+        </div>
+        <div class="text-right flex-shrink-0">
+          {% if h.next_hearing_date %}
+          <div class="text-xs text-gray-500">Next hearing</div>
+          <div class="text-sm font-medium text-gray-800">{{ h.next_hearing_date | format_date }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-400">No hearings recorded yet.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Add Hearing Modal -->
+  <div id="add-hearing-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+      <div class="flex items-center justify-between px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold">Add Hearing</h3>
+        <button onclick="document.getElementById('add-hearing-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+          <i class="fa-solid fa-times text-xl"></i>
+        </button>
+      </div>
+      <form action="/cases/{{ case.id }}/add-hearing" method="post" class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Hearing Date <span class="text-red-500">*</span></label>
+            <input type="date" name="hearing_date" required class="form-input">
+          </div>
+          <div>
+            <label class="form-label">Hearing Type</label>
+            <select name="hearing_type" class="form-input">
+              {% for ht in ['First Hearing','Arguments','Evidence','Final Arguments','Order','Compliance','Other'] %}
+              <option>{{ ht }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Purpose</label>
+          <input name="purpose" placeholder="Purpose of hearing" class="form-input">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Bench</label>
+            <input name="bench" placeholder="Judge / Bench" class="form-input">
+          </div>
+          <div>
+            <label class="form-label">Lawyer Attending</label>
+            <input name="lawyer_attending" placeholder="Lawyer name" class="form-input">
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Outcome</label>
+          <input name="outcome" placeholder="e.g. Adjourned, Part heard, Order reserved…" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Next Hearing Date</label>
+          <input type="date" name="next_hearing_date" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Notes</label>
+          <textarea name="notes" rows="2" class="form-input"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" onclick="document.getElementById('add-hearing-modal').classList.add('hidden')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Save Hearing</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ACTIONS -->
+  {% elif tab == 'actions' %}
+  <div class="flex justify-between items-center mb-4">
+    <h3 class="font-semibold text-gray-700">Actions</h3>
+    <button onclick="document.getElementById('add-action-modal').classList.remove('hidden')" class="btn-primary">
+      <i class="fa-solid fa-plus"></i> Add Action
+    </button>
+  </div>
+  <div class="space-y-2">
+    {% for a in actions %}
+    {% set asc = a.status | action_status_color %}
+    <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-gray-300 transition-colors">
+      <div class="w-3 h-3 rounded-full bg-{{ asc }}-500 flex-shrink-0"></div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-gray-800">{{ a.title }}</div>
+        <div class="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+          {% if a.assigned_to_user %}<span><i class="fa-solid fa-user mr-1"></i>{{ a.assigned_to_user.full_name }}</span>{% endif %}
+          {% if a.due_date %}
+            {% set days = a.due_date | days_from_now %}
+            <span class="{% if a.status == 'Overdue' %}text-red-600 font-medium{% elif days is not none and days <= 3 %}text-orange-600 font-medium{% endif %}">
+              <i class="fa-solid fa-calendar mr-1"></i>Due {{ a.due_date | format_date }}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+      <span class="badge bg-{{ asc }}-100 text-{{ asc }}-700 flex-shrink-0">{{ a.status }}</span>
+      {% if a.status not in ['Completed', 'Cancelled'] %}
+      <form action="/actions/{{ a.id }}/complete" method="post">
+        <input type="hidden" name="completion_notes" value="Completed via case view">
+        <button type="submit" class="text-green-600 hover:text-green-800 text-xs font-medium whitespace-nowrap">
+          <i class="fa-solid fa-check"></i> Mark Done
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-400">No actions yet.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Add Action Modal -->
+  <div id="add-action-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+      <div class="flex items-center justify-between px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold">Add Action</h3>
+        <button onclick="document.getElementById('add-action-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-times text-xl"></i></button>
+      </div>
+      <form action="/cases/{{ case.id }}/add-action" method="post" class="p-6 space-y-4">
+        <div>
+          <label class="form-label">Action Title <span class="text-red-500">*</span></label>
+          <input name="title" required placeholder="e.g. File compliance report" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Description</label>
+          <textarea name="description" rows="2" class="form-input"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Assign To</label>
+            <select name="assigned_to_id" class="form-input">
+              <option value="">Not assigned</option>
+              {% for u in users %}<option value="{{ u.id }}">{{ u.full_name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Priority</label>
+            <select name="priority" class="form-input">
+              {% for p in priorities %}<option>{{ p }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Due Date</label>
+          <input type="date" name="due_date" class="form-input">
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" onclick="document.getElementById('add-action-modal').classList.add('hidden')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Create Action</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DOCUMENTS -->
+  {% elif tab == 'documents' %}
+  <div class="flex justify-between items-center mb-4">
+    <h3 class="font-semibold text-gray-700">Documents</h3>
+    <span class="text-sm text-gray-500">Upload via Admin panel or case manager portal</span>
+  </div>
+  <div class="space-y-2">
+    {% for d in documents %}
+    <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+      <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid fa-file-pdf text-red-500 text-lg"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-gray-800">{{ d.name }}</div>
+        <div class="text-xs text-gray-500 mt-0.5">
+          {{ d.doc_type or "Document" }}
+          {% if d.uploaded_by_user %} · {{ d.uploaded_by_user.full_name }}{% endif %}
+          · {{ d.created_at | format_date }}
+          · v{{ d.version }}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-400">
+      <i class="fa-solid fa-file-circle-plus text-4xl mb-3 block"></i>
+      No documents uploaded yet.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- PARTIES -->
+  {% elif tab == 'parties' %}
+  <div class="space-y-3">
+    {% for party in case.parties %}
+    <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+      <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-800 flex-shrink-0">
+        {{ party.name[0] }}
+      </div>
+      <div class="flex-1">
+        <div class="text-sm font-semibold text-gray-800">{{ party.name }}</div>
+        <div class="text-xs text-gray-500">{{ party.party_type }}</div>
+        {% if party.contact %}<div class="text-xs text-gray-500 mt-0.5">{{ party.contact }}</div>{% endif %}
+      </div>
+      <span class="badge bg-gray-50 text-gray-800">{{ party.party_type }}</span>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-400">No parties recorded.</div>
+    {% endfor %}
+  </div>
+
+  <!-- NOTES -->
+  {% elif tab == 'notes' %}
+  <div class="mb-4">
+    <form action="/cases/{{ case.id }}/add-note" method="post" class="flex gap-3">
+      <textarea name="content" rows="2" required placeholder="Add a note…" class="form-input flex-1"></textarea>
+      <button type="submit" class="btn-primary self-end">Add Note</button>
+    </form>
+  </div>
+  <div class="space-y-3">
+    {% for note in case.notes | sort(attribute='created_at', reverse=True) %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+      <div class="text-sm text-gray-800">{{ note.content }}</div>
+      <div class="text-xs text-gray-400 mt-2">
+        {{ note.created_by.full_name if note.created_by else "Unknown" }} · {{ note.created_at | format_date("%d %b %Y, %H:%M") }}
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-400">No notes yet.</div>
+    {% endfor %}
+  </div>
+
+  <!-- OUTCOME -->
+  {% elif tab == 'outcome' %}
+  {% if case.outcome %}
+  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-6">
+    <div class="text-xs font-semibold text-emerald-600 uppercase mb-2">Case Outcome</div>
+    <div class="text-2xl font-bold text-emerald-800">{{ case.outcome }}</div>
+    {% if case.outcome_date %}<div class="text-sm text-emerald-700 mt-1">{{ case.outcome_date | format_date }}</div>{% endif %}
+    {% if case.outcome_notes %}<div class="text-sm text-emerald-700 mt-3">{{ case.outcome_notes }}</div>{% endif %}
+  </div>
+  {% endif %}
+  {% if case.status != 'Closed' %}
+  <div class="card p-5">
+    <h3 class="font-semibold text-gray-700 mb-4">Record Outcome & Close Case</h3>
+    <form action="/cases/{{ case.id }}/set-outcome" method="post" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Outcome <span class="text-red-500">*</span></label>
+          <select name="outcome" required class="form-input">
+            {% for o in outcomes %}<option>{{ o }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Outcome Date</label>
+          <input type="date" name="outcome_date" class="form-input">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Notes</label>
+        <textarea name="outcome_notes" rows="3" placeholder="Final order reference, settlement details…" class="form-input"></textarea>
+      </div>
+      <button type="submit" class="btn-success">
+        <i class="fa-solid fa-flag-checkered"></i> Record Outcome & Close Case
+      </button>
+    </form>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  </div>
+</div>
+{% endblock %}

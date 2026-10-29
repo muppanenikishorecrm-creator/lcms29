@@ -1,0 +1,116 @@
+<!-- Logo -->
+<div class="flex items-center gap-3 px-3 py-4 flex-shrink-0" style="border-bottom:1px solid var(--c-sidebar-border);">
+  <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(255,255,255,0.12); min-width:32px;">
+    <i class="fa-solid fa-scale-balanced text-white" style="font-size:0.875rem;"></i>
+  </div>
+  <div class="logo-text overflow-hidden">
+    <div class="text-white font-bold text-sm leading-tight whitespace-nowrap">LCMS</div>
+    <div class="text-xs whitespace-nowrap" style="color:#6b7280;">Legal Case Management</div>
+  </div>
+  <!-- Close button on mobile -->
+  <button @click="mobileMenuOpen = false" class="lg:hidden ml-auto p-1 rounded" style="color:#6b7280;" aria-label="Close menu">
+    <i class="fa-solid fa-xmark"></i>
+  </button>
+</div>
+
+<!-- Nav links -->
+<nav class="flex-1 px-2 py-3 overflow-y-auto space-y-0.5">
+
+  <a href="/dashboard"
+     data-label="Dashboard"
+     class="sidebar-link {% if request.url.path == '/dashboard' %}active{% endif %}">
+    <i class="fa-solid fa-gauge-high icon"></i>
+    <span class="label">Dashboard</span>
+  </a>
+
+  <div class="nav-section">Cases</div>
+
+  <a href="/cases"
+     data-label="All Cases"
+     class="sidebar-link {% if request.url.path.startswith('/cases') and '/create' not in request.url.path %}active{% endif %}">
+    <i class="fa-solid fa-folder-open icon"></i>
+    <span class="label">All Cases</span>
+  </a>
+
+  <a href="/cases/create"
+     data-label="New Case"
+     class="sidebar-link {% if '/cases/create' in request.url.path %}active{% endif %}">
+    <i class="fa-solid fa-plus icon"></i>
+    <span class="label">New Case</span>
+  </a>
+
+  <a href="/calendar"
+     data-label="Calendar"
+     class="sidebar-link {% if request.url.path == '/calendar' %}active{% endif %}">
+    <i class="fa-solid fa-calendar-days icon"></i>
+    <span class="label">Calendar</span>
+  </a>
+
+  <a href="/actions"
+     data-label="Actions"
+     class="sidebar-link {% if request.url.path == '/actions' %}active{% endif %}">
+    <i class="fa-solid fa-list-check icon"></i>
+    <span class="label">Actions</span>
+  </a>
+
+  <div class="nav-section">Management</div>
+
+  <a href="/people"
+     data-label="People"
+     class="sidebar-link {% if request.url.path == '/people' %}active{% endif %}">
+    <i class="fa-solid fa-users icon"></i>
+    <span class="label">People</span>
+  </a>
+
+  <a href="/notifications"
+     data-label="Notifications"
+     class="sidebar-link {% if request.url.path == '/notifications' %}active{% endif %}">
+    <i class="fa-solid fa-bell icon"></i>
+    <span class="label">Notifications</span>
+    {% if unread_notifs > 0 %}
+    <span class="badge-count ml-auto text-xs font-bold rounded-full flex items-center justify-center"
+      style="min-width:18px;height:18px;padding:0 5px;background:#dc2626;color:#fff;">{{ unread_notifs }}</span>
+    {% endif %}
+  </a>
+
+  <a href="/reports"
+     data-label="Reports"
+     class="sidebar-link {% if request.url.path == '/reports' %}active{% endif %}">
+    <i class="fa-solid fa-chart-bar icon"></i>
+    <span class="label">Reports</span>
+  </a>
+
+  <a href="/audit-logs"
+     data-label="Audit Logs"
+     class="sidebar-link {% if request.url.path == '/audit-logs' %}active{% endif %}">
+    <i class="fa-solid fa-shield-halved icon"></i>
+    <span class="label">Audit Logs</span>
+  </a>
+
+  {% if current_user.role in ['super_admin', 'org_admin', 'state_admin'] %}
+  <div class="nav-section">Administration</div>
+  <a href="/admin"
+     data-label="Settings"
+     class="sidebar-link {% if request.url.path == '/admin' %}active{% endif %}">
+    <i class="fa-solid fa-gears icon"></i>
+    <span class="label">Settings</span>
+  </a>
+  {% endif %}
+
+</nav>
+
+<!-- User footer -->
+<div class="px-3 py-3 flex items-center gap-3 flex-shrink-0" style="border-top:1px solid var(--c-sidebar-border);">
+  <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+    style="background:#374151; min-width:32px;">
+    {{ current_user.full_name[0] }}
+  </div>
+  <div class="sidebar-footer-text flex-1 min-w-0">
+    <div class="text-white text-xs font-medium truncate">{{ current_user.full_name }}</div>
+    <div class="text-xs truncate" style="color:#6b7280;">{{ current_user.role | role_label }}</div>
+  </div>
+  <a href="/logout" data-label="Logout"
+    class="transition-colors flex-shrink-0 p-1 rounded sidebar-link" style="color:#6b7280; padding:4px;">
+    <i class="fa-solid fa-right-from-bracket icon" style="width:auto;"></i>
+  </a>
+</div>

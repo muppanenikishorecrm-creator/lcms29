@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Apply dark class immediately to prevent flash -->
+  <script>if(localStorage.getItem('lcms_dark')==='true')document.documentElement.classList.add('dark')</script>
+  <title>{% block title %}LCMS{% endblock %} — Legal Case Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+
+  <style>
+    /* ── CSS Variables ─────────────────────────────────────── */
+    :root {
+      --c-bg:             #f3f4f6;
+      --c-surface:        #ffffff;
+      --c-surface-2:      #f9fafb;
+      --c-sidebar:        #0d0d0d;
+      --c-sidebar-border: #1f2937;
+      --c-sidebar-text:   #9ca3af;
+      --c-sidebar-hover:  rgba(255,255,255,0.08);
+      --c-sidebar-active: rgba(255,255,255,0.15);
+      --c-text:           #111827;
+      --c-text-muted:     #6b7280;
+      --c-border:         #e5e7eb;
+      --c-hover:          #f9fafb;
+      --c-input-bg:       #ffffff;
+      --c-btn-primary:    #111827;
+      --c-btn-primary-hover: #000000;
+    }
+    .dark {
+      --c-bg:             #0f172a;
+      --c-surface:        #1e293b;
+      --c-surface-2:      #263348;
+      --c-sidebar:        #020617;
+      --c-sidebar-border: #1e293b;
+      --c-sidebar-text:   #94a3b8;
+      --c-sidebar-hover:  rgba(255,255,255,0.06);
+      --c-sidebar-active: rgba(255,255,255,0.12);
+      --c-text:           #f1f5f9;
+      --c-text-muted:     #94a3b8;
+      --c-border:         #334155;
+      --c-hover:          #263348;
+      --c-input-bg:       #1e293b;
+      --c-btn-primary:    #f1f5f9;
+      --c-btn-primary-hover: #ffffff;
+    }
+
+    /* ── Base ──────────────────────────────────────────────── */
+    [x-cloak] { display: none !important; }
+    * { box-sizing: border-box; }
+    body { background: var(--c-bg); color: var(--c-text); transition: background 0.2s, color 0.2s; }
+
+    /* ── Sidebar ───────────────────────────────────────────── */
+    #sidebar {
+      background: var(--c-sidebar);
+      width: 240px;
+      flex-shrink: 0;
+      transition: width 0.25s ease, transform 0.25s ease;
+      overflow: hidden;
+    }
+    #sidebar.collapsed { width: 56px; }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--c-sidebar-text);
+      transition: background 0.12s, color 0.12s;
+      white-space: nowrap;
+      overflow: hidden;
+      position: relative;
+    }
+    .sidebar-link:hover { background: var(--c-sidebar-hover); color: #fff; }
+    .sidebar-link.active  { background: var(--c-sidebar-active); color: #fff; }
+    .sidebar-link .icon   { width: 18px; min-width: 18px; text-align: center; font-size: 0.875rem; }
+    .sidebar-link .label  { transition: opacity 0.2s; white-space: nowrap; }
+
+    #sidebar.collapsed .sidebar-link { justify-content: center; padding: 8px; }
+    #sidebar.collapsed .sidebar-link .label { display: none; }
+    #sidebar.collapsed .sidebar-link .badge-count { display: none; }
+    #sidebar.collapsed .nav-section { display: none; }
+    #sidebar.collapsed .sidebar-footer-text { display: none; }
+    #sidebar.collapsed .logo-text { display: none; }
+
+    /* Tooltip on collapsed */
+    #sidebar.collapsed .sidebar-link::after {
+      content: attr(data-label);
+      position: absolute;
+      left: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #111827;
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      z-index: 100;
+    }
+    #sidebar.collapsed .sidebar-link:hover::after { opacity: 1; }
+
+    .nav-section {
+      padding: 14px 12px 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #4b5563;
+      white-space: nowrap;
+    }
+
+    /* ── Cards & Surface ───────────────────────────────────── */
+    .card {
+      background: var(--c-surface);
+      border-radius: 10px;
+      border: 1px solid var(--c-border);
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .card-hover:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+
+    /* ── Buttons ───────────────────────────────────────────── */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 0.875rem; font-weight: 500; transition: all 0.12s; cursor: pointer; text-decoration: none; }
+    .btn:focus { outline: 2px solid var(--c-btn-primary); outline-offset: 2px; }
+
+    .btn-primary { background: var(--c-btn-primary); color: var(--c-bg); }
+    .dark .btn-primary { color: #0f172a; }
+    .btn-primary:hover { background: var(--c-btn-primary-hover); }
+
+    .btn-secondary { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); }
+    .btn-secondary:hover { background: var(--c-hover); }
+
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+
+    /* ── Forms ─────────────────────────────────────────────── */
+    .form-input {
+      display: block; width: 100%;
+      border-radius: 6px; border: 1px solid var(--c-border);
+      padding: 7px 12px; font-size: 0.875rem;
+      background: var(--c-input-bg); color: var(--c-text);
+      transition: border-color 0.15s;
+    }
+    .form-input:focus { outline: 2px solid var(--c-btn-primary); outline-offset: 0; border-color: var(--c-btn-primary); }
+    .form-label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--c-text); margin-bottom: 4px; }
+
+    /* ── Tables ────────────────────────────────────────────── */
+    .table-header { padding: 10px 16px; text-align: left; font-size: 0.7rem; font-weight: 700; color: var(--c-text-muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .table-cell   { padding: 12px 16px; font-size: 0.875rem; color: var(--c-text); }
+    .table-row    { border-bottom: 1px solid var(--c-border); }
+    .table-row:hover { background: var(--c-hover); }
+
+    /* ── Badge ─────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+
+    /* ── Header ────────────────────────────────────────────── */
+    #topbar {
+      background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    /* ── Mobile overlay ────────────────────────────────────── */
+    #mobile-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 40; display: none;
+    }
+    #mobile-sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 240px; z-index: 50;
+      background: var(--c-sidebar);
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      overflow-y: auto;
+    }
+    #mobile-sidebar.open    { transform: translateX(0); }
+    #mobile-backdrop.open   { display: block; }
+
+    /* ── Dark mode: comprehensive Tailwind overrides ───────── */
+
+    /* Text */
+    .dark .text-gray-900, .dark .text-gray-800 { color: #f1f5f9 !important; }
+    .dark .text-gray-700, .dark .text-gray-600 { color: #cbd5e1 !important; }
+    .dark .text-gray-500, .dark .text-gray-400 { color: #94a3b8 !important; }
+    .dark .text-gray-300 { color: #64748b !important; }
+    .dark .text-black { color: #f1f5f9 !important; }
+
+    /* Backgrounds */
+    .dark .bg-white  { background-color: #1e293b !important; }
+    .dark .bg-gray-50  { background-color: #263348 !important; }
+    .dark .bg-gray-100 { background-color: #293f5a !important; }
+    .dark .bg-gray-200 { background-color: #334155 !important; }
+    .dark .hover\:bg-gray-50:hover  { background-color: #263348 !important; }
+    .dark .hover\:bg-gray-100:hover { background-color: #293f5a !important; }
+
+    /* Borders */
+    .dark .border-gray-100 { border-color: #1e293b !important; }
+    .dark .border-gray-200 { border-color: #334155 !important; }
+    .dark .border-gray-300 { border-color: #475569 !important; }
+    .dark .divide-gray-50  > * + * { border-color: #1e293b !important; }
+    .dark .divide-gray-100 > * + * { border-color: #263348 !important; }
+
+    /* Cards & surfaces */
+    .dark .card { background-color: #1e293b !important; border-color: #334155 !important; }
+
+    /* Tables */
+    .dark table  { color: #cbd5e1; }
+    .dark thead, .dark .dark\:bg-surface-2 { background-color: #263348 !important; }
+    .dark th     { color: #94a3b8 !important; }
+    .dark td     { color: #cbd5e1; border-color: #334155; }
+    .dark tr:hover { background-color: #263348 !important; }
+    .dark .table-row { border-color: #334155 !important; }
+    .dark .table-row:hover { background-color: #263348 !important; }
+
+    /* Forms & inputs */
+    .dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]),
+    .dark select,
+    .dark textarea {
+      background-color: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #475569 !important;
+    }
+    .dark input::placeholder, .dark textarea::placeholder { color: #64748b !important; }
+    .dark label { color: #cbd5e1 !important; }
+
+    /* Badges — keep semantic colors readable */
+    .dark .bg-red-100    { background-color: #450a0a !important; }
+    .dark .bg-green-100  { background-color: #052e16 !important; }
+    .dark .bg-yellow-100 { background-color: #422006 !important; }
+    .dark .bg-blue-100   { background-color: #0c1a40 !important; }
+    .dark .bg-gray-100   { background-color: #293f5a !important; }
+    .dark .text-red-700, .dark .text-red-800 { color: #fca5a5 !important; }
+    .dark .text-green-700, .dark .text-green-800 { color: #86efac !important; }
+    .dark .text-yellow-700, .dark .text-yellow-800 { color: #fde68a !important; }
+    .dark .text-blue-700, .dark .text-blue-800 { color: #93c5fd !important; }
+
+    /* Modals / overlays */
+    .dark .modal-bg, .dark [class*="bg-white rounded"] { background-color: #1e293b !important; }
+
+    /* Headings */
+    .dark h1, .dark h2, .dark h3, .dark h4, .dark h5 { color: #f1f5f9; }
+    .dark p { color: #cbd5e1; }
+
+    /* Links */
+    .dark a.text-gray-800, .dark a.text-gray-700 { color: #e2e8f0 !important; }
+
+    /* Buttons — keep secondary readable */
+    .dark .btn-secondary { background: #263348 !important; color: #e2e8f0 !important; border-color: #475569 !important; }
+    .dark .btn-primary   { background: #e2e8f0 !important; color: #0f172a !important; }
+    .dark .btn-primary:hover { background: #f8fafc !important; }
+
+    /* Inline style overrides for hardcoded colors */
+    .dark [style*="color:#374151"], .dark [style*="color: #374151"] { color: #e2e8f0 !important; }
+    .dark [style*="color:#111827"], .dark [style*="color: #111827"] { color: #f1f5f9 !important; }
+    .dark [style*="color:#6b7280"], .dark [style*="color: #6b7280"] { color: #94a3b8 !important; }
+    .dark [style*="background:#f9fafb"], .dark [style*="background: #f9fafb"] { background: #263348 !important; }
+    .dark [style*="background:#ffffff"], .dark [style*="background: #ffffff"] { background: #1e293b !important; }
+    .dark [style*="border:1px solid #e5e7eb"] { border-color: #334155 !important; }
+    .dark [style*="border-bottom:1px solid #e5e7eb"] { border-color: #334155 !important; }
+    .dark [style*="border-color:#e5e7eb"] { border-color: #334155 !important; }
+
+    /* ── Scrollbar ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 9999px; }
+
+    /* ── Mobile responsive helpers ─────────────────────────── */
+    @media (max-width: 1023px) {
+      #sidebar { display: none; }
+    }
+    @media (max-width: 640px) {
+      .hide-mobile { display: none !important; }
+    }
+  </style>
+</head>
+
+<body class="h-full"
+  x-data="lcmsApp()"
+  x-init="
+    $watch('darkMode', v => document.documentElement.classList.toggle('dark', v));
+    document.documentElement.classList.toggle('dark', darkMode);
+  ">
+
+<!-- Mobile backdrop -->
+<div id="mobile-backdrop" :class="{ 'open': mobileMenuOpen }" @click="mobileMenuOpen = false"></div>
+
+<!-- Mobile sidebar -->
+<div id="mobile-sidebar" :class="{ 'open': mobileMenuOpen }">
+  {% include "partials/sidebar_nav.html" %}
+</div>
+
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Desktop Sidebar -->
+  <aside id="sidebar" :class="{ 'collapsed': sidebarCollapsed }" class="hidden lg:flex flex-col">
+    {% include "partials/sidebar_nav.html" %}
+  </aside>
+
+  <!-- Main content -->
+  <div class="flex flex-col flex-1 overflow-hidden min-w-0">
+
+    <!-- Top bar -->
+    <header id="topbar" class="flex items-center justify-between px-4 py-3 flex-shrink-0 gap-3">
+      <div class="flex items-center gap-3">
+        <!-- Mobile hamburger -->
+        <button @click="mobileMenuOpen = true" class="lg:hidden p-2 rounded-md transition-colors"
+          style="color:var(--c-text-muted);" aria-label="Open menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <!-- Desktop collapse toggle -->
+        <button @click="toggleSidebar()" class="hidden lg:flex p-2 rounded-md transition-colors"
+          style="color:var(--c-text-muted);"
+          :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+          <i class="fa-solid" :class="sidebarCollapsed ? 'fa-indent' : 'fa-outdent'"></i>
+        </button>
+        <h1 class="text-sm font-semibold truncate" style="color:var(--c-text);">{% block page_title %}Dashboard{% endblock %}</h1>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Search (hidden on small screens) -->
+        <form action="/cases" method="get" class="hidden md:flex items-center">
+          <div class="relative">
+            <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs" style="color:var(--c-text-muted);"></i>
+            <input name="search" placeholder="Search cases…"
+              class="form-input pl-8 pr-3 py-1.5 text-sm"
+              style="width:180px; border-radius:6px;">
+          </div>
+        </form>
+
+        <!-- Dark mode toggle -->
+        <button @click="toggleDark()" class="p-2 rounded-md transition-colors"
+          style="color:var(--c-text-muted);"
+          :title="darkMode ? 'Switch to light mode' : 'Switch to dark mode'">
+          <i class="fa-solid" :class="darkMode ? 'fa-sun' : 'fa-moon'"></i>
+        </button>
+
+        <!-- Notifications bell -->
+        <a href="/notifications" class="relative p-2 rounded-md transition-colors" style="color:var(--c-text-muted);">
+          <i class="fa-solid fa-bell"></i>
+          {% if unread_notifs > 0 %}
+          <span class="absolute top-1 right-1 w-4 h-4 bg-red-600 text-white text-xs rounded-full flex items-center justify-center leading-none">{{ unread_notifs }}</span>
+          {% endif %}
+        </a>
+
+        <!-- New Case -->
+        <a href="/cases/create" class="btn-primary btn hide-mobile">
+          <i class="fa-solid fa-plus text-xs"></i>
+          <span>New Case</span>
+        </a>
+        <!-- Mobile: icon-only -->
+        <a href="/cases/create" class="md:hidden p-2 rounded-md btn-primary" style="padding:7px 10px;">
+          <i class="fa-solid fa-plus"></i>
+        </a>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-6">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+{% block scripts %}{% endblock %}
+
+<!-- Alpine.js App -->
+<script>
+function lcmsApp() {
+  return {
+    darkMode: localStorage.getItem('lcms_dark') === 'true',
+    sidebarCollapsed: localStorage.getItem('lcms_sidebar_collapsed') === 'true',
+    mobileMenuOpen: false,
+
+    toggleDark() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('lcms_dark', this.darkMode);
+    },
+    toggleSidebar() {
+      this.sidebarCollapsed = !this.sidebarCollapsed;
+      localStorage.setItem('lcms_sidebar_collapsed', this.sidebarCollapsed);
+    },
+  }
+}
+</script>
+</body>
+</html>

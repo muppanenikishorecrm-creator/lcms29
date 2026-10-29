@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Cases{% endblock %}
+{% block page_title %}Cases{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card p-4 mb-5">
+  <form method="get" action="/cases" class="flex flex-wrap gap-3 items-end">
+    <div class="flex-1 min-w-48">
+      <label class="form-label">Search</label>
+      <input name="search" value="{{ search }}" placeholder="Case ID, title, CNR…" class="form-input">
+    </div>
+    <div>
+      <label class="form-label">Status</label>
+      <select name="status" class="form-input">
+        <option value="">All Statuses</option>
+        {% for s in statuses %}<option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">Priority</label>
+      <select name="priority" class="form-input">
+        <option value="">All Priorities</option>
+        {% for p in priorities %}<option value="{{ p }}" {% if priority_filter == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">State</label>
+      <select name="state_id" class="form-input">
+        <option value="">All States</option>
+        {% for s in states %}<option value="{{ s.id }}" {% if state_filter == s.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">
+      <i class="fa-solid fa-filter"></i> Filter
+    </button>
+    <a href="/cases" class="btn-secondary">Clear</a>
+  </form>
+</div>
+
+<!-- Results header -->
+<div class="flex items-center justify-between mb-3">
+  <div class="text-sm text-gray-500">Showing <strong class="text-gray-800">{{ cases | length }}</strong> of <strong class="text-gray-800">{{ total }}</strong> cases</div>
+  <a href="/cases/create" class="btn-primary">
+    <i class="fa-solid fa-plus"></i> New Case
+  </a>
+</div>
+
+<!-- Table -->
+<div class="card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-100">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="table-header">Case ID</th>
+          <th class="table-header">Title</th>
+          <th class="table-header">Court</th>
+          <th class="table-header">Status</th>
+          <th class="table-header">Priority</th>
+          <th class="table-header">Next Hearing</th>
+          <th class="table-header">State</th>
+          <th class="table-header">Updated</th>
+          <th class="table-header"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for c in cases %}
+        {% set sc = c.status | status_color %}
+        {% set pc = c.priority | priority_color %}
+        <tr class="hover:bg-gray-50 transition-colors">
+          <td class="table-cell font-mono text-xs text-gray-800 whitespace-nowrap">{{ c.case_id }}</td>
+          <td class="table-cell max-w-xs">
+            <div class="font-medium text-gray-900 truncate">{{ c.title }}</div>
+            {% if c.case_number %}<div class="text-xs text-gray-400">{{ c.case_number }}</div>{% endif %}
+          </td>
+          <td class="table-cell text-gray-500 text-xs">{{ c.court.name if c.court else "—" }}</td>
+          <td class="table-cell">
+            <span class="badge bg-{{ sc }}-100 text-{{ sc }}-700">{{ c.status }}</span>
+          </td>
+          <td class="table-cell">
+            <span class="badge bg-{{ pc }}-100 text-{{ pc }}-700">{{ c.priority }}</span>
+          </td>
+          <td class="table-cell text-xs whitespace-nowrap">
+            {% if c.next_hearing_date %}
+              {% set days = c.next_hearing_date | days_from_now %}
+              <span class="{% if days is not none and days < 0 %}text-red-600 font-medium{% elif days is not none and days <= 7 %}text-orange-600 font-medium{% else %}text-gray-600{% endif %}">
+                {{ c.next_hearing_date | format_date }}
+                {% if days is not none and days == 0 %}(Today)
+                {% elif days is not none and days < 0 %}({{ days | abs }}d ago)
+                {% elif days is not none and days <= 7 %}({{ days }}d)
+                {% endif %}
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="table-cell text-xs text-gray-500">{{ c.state.name if c.state else "—" }}</td>
+          <td class="table-cell text-xs text-gray-400 whitespace-nowrap">{{ c.updated_at | format_date }}</td>
+          <td class="table-cell">
+            <a href="/cases/{{ c.id }}" class="text-gray-800 hover:text-gray-800 text-sm font-medium">View →</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="px-6 py-12 text-center text-gray-400">
+            <i class="fa-solid fa-folder-open text-4xl mb-3 block"></i>
+            No cases found. <a href="/cases/create" class="text-gray-800 hover:underline">Create the first one</a>.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if pages > 1 %}
+  <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+    <div class="text-sm text-gray-500">Page {{ page }} of {{ pages }}</div>
+    <div class="flex gap-2">
+      {% if page > 1 %}
+      <a href="?page={{ page - 1 }}&search={{ search }}&status={{ status_filter }}&priority={{ priority_filter }}" class="btn-secondary py-1 px-3 text-xs">← Prev</a>
+      {% endif %}
+      {% if page < pages %}
+      <a href="?page={{ page + 1 }}&search={{ search }}&status={{ status_filter }}&priority={{ priority_filter }}" class="btn-secondary py-1 px-3 text-xs">Next →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

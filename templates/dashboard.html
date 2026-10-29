@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Personal attention banner -->
+{% if current_user.role in ['lawyer', 'case_manager', 'stakeholder'] %}
+<div class="mb-6 rounded-xl p-4 md:p-5" style="background:var(--c-surface-2);border:1px solid var(--c-border);">
+  <h2 class="text-base font-semibold mb-4" style="color:var(--c-text);">
+    Good {{ "morning" if now.hour < 12 else ("afternoon" if now.hour < 18 else "evening") }}, {{ current_user.full_name.split()[0] }}
+  </h2>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    {% if my_overdue > 0 %}
+    <a href="/actions?filter=overdue" class="flex items-center gap-3 rounded-lg p-3 transition-colors" style="background:#fef2f2;border:1px solid #fecaca;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
+      <i class="fa-solid fa-circle-exclamation text-red-500 text-xl"></i>
+      <div><div class="font-bold text-red-700 text-lg">{{ my_overdue }}</div><div class="text-xs text-red-600">Overdue actions</div></div>
+    </a>
+    {% endif %}
+    {% if my_due_soon > 0 %}
+    <a href="/actions?filter=due_soon" class="flex items-center gap-3 rounded-lg p-3 transition-colors" style="background:#fffbeb;border:1px solid #fde68a;" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fffbeb'">
+      <i class="fa-solid fa-clock text-yellow-600 text-xl"></i>
+      <div><div class="font-bold text-yellow-700 text-lg">{{ my_due_soon }}</div><div class="text-xs text-yellow-600">Due in 7 days</div></div>
+    </a>
+    {% endif %}
+    {% if my_upcoming_hearings > 0 %}
+    <a href="/calendar" class="flex items-center gap-3 rounded-lg p-3 transition-colors" style="background:#f9fafb;border:1px solid #d1d5db;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#f9fafb'">
+      <i class="fa-solid fa-calendar-days text-gray-600 text-xl"></i>
+      <div><div class="font-bold text-gray-800 text-lg">{{ my_upcoming_hearings }}</div><div class="text-xs" style="color:var(--c-text-muted);">Hearings this week</div></div>
+    </a>
+    {% endif %}
+    {% if cases_without_updates > 0 %}
+    <a href="/cases" class="flex items-center gap-3 rounded-lg p-3 transition-colors" style="background:#f9fafb;border:1px solid #d1d5db;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#f9fafb'">
+      <i class="fa-solid fa-triangle-exclamation text-gray-500 text-xl"></i>
+      <div><div class="font-bold text-gray-700 text-lg">{{ cases_without_updates }}</div><div class="text-xs" style="color:var(--c-text-muted);">No update in 30d</div></div>
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- KPI cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  {% set kpis = [
+    ("Total Cases",       total_cases,       "fa-folder-open",          "#111827", "/cases"),
+    ("Active Cases",      active_cases,      "fa-spinner",              "#16a34a", "/cases?status=Active"),
+    ("Critical Cases",    critical_cases,    "fa-triangle-exclamation", "#dc2626", "/cases?priority=Critical"),
+    ("Closed Cases",      closed_cases,      "fa-circle-check",         "#6b7280", "/cases?status=Closed"),
+    ("Upcoming Hearings", upcoming_hearings, "fa-calendar-day",         "#374151", "/calendar"),
+    ("Actions Due (7d)",  actions_due,       "fa-clock",                "#92400e", "/actions?filter=due_soon"),
+    ("Overdue Actions",   overdue_actions,   "fa-circle-exclamation",   "#dc2626", "/actions?filter=overdue"),
+    ("New Cases",         new_cases,         "fa-plus-circle",          "#374151", "/cases?status=New"),
+  ] %}
+  {% for label, value, icon, color, link in kpis %}
+  <a href="{{ link }}" class="card p-4 hover:shadow-md transition-shadow group">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--c-text-muted);">{{ label }}</span>
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform" style="background:var(--c-surface-2);">
+        <i class="fa-solid {{ icon }}" style="color:{{ color }};font-size:0.85rem;"></i>
+      </div>
+    </div>
+    <div class="text-3xl font-bold" style="color:var(--c-text);">{{ value }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold mb-4" style="color:var(--c-text);">Cases by Status</h3>
+    <canvas id="statusChart" height="200"></canvas>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold mb-4" style="color:var(--c-text);">Cases by Priority</h3>
+    <canvas id="priorityChart" height="200"></canvas>
+  </div>
+  <div class="card p-5">
+    <h3 class="text-sm font-semibold mb-4" style="color:var(--c-text);">Cases by State</h3>
+    <canvas id="stateChart" height="200"></canvas>
+  </div>
+</div>
+
+<!-- Hearings + Actions -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Upcoming Hearings -->
+  <div class="card">
+    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--c-border);">
+      <h3 class="font-semibold text-sm" style="color:var(--c-text);">Upcoming Hearings</h3>
+      <a href="/calendar" class="text-xs text-gray-500 hover:text-gray-900 hover:underline">View calendar →</a>
+    </div>
+    <div class="divide-y" style="border-color:var(--c-border);">
+      {% for h in recent_hearings %}
+      <a href="/cases/{{ h.case_id }}" class="flex items-center gap-3 px-5 py-3 transition-colors" onmouseover="this.style.background='var(--c-hover)'" onmouseout="this.style.background='transparent'">
+        <div class="w-10 h-10 rounded-lg flex flex-col items-center justify-center flex-shrink-0" style="background:var(--c-surface-2);">
+          <span class="font-bold text-sm leading-none text-gray-800">{{ h.hearing_date.strftime('%d') }}</span>
+          <span class="text-xs leading-none text-gray-500">{{ h.hearing_date.strftime('%b') }}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate" style="color:var(--c-text);">{{ h.case.title }}</div>
+          <div class="text-xs" style="color:var(--c-text-muted);">{{ h.case.case_id }} · {{ h.hearing_type or "Hearing" }}</div>
+        </div>
+      </a>
+      {% else %}
+      <div class="px-5 py-8 text-center text-sm text-gray-400">No upcoming hearings this week</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Overdue Actions -->
+  <div class="card">
+    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--c-border);">
+      <h3 class="font-semibold text-sm" style="color:var(--c-text);">Overdue Actions</h3>
+      <a href="/actions?filter=overdue" class="text-xs text-red-600 hover:underline">View all →</a>
+    </div>
+    <div class="divide-y" style="border-color:var(--c-border);">
+      {% for a in overdue_action_list %}
+      <a href="/cases/{{ a.case_id }}?tab=actions" class="flex items-center gap-3 px-5 py-3 transition-colors" onmouseover="this.style.background='var(--c-hover)'" onmouseout="this.style.background='transparent'">
+        <div class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-1"></div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate" style="color:var(--c-text);">{{ a.title }}</div>
+          <div class="text-xs" style="color:var(--c-text-muted);">{{ a.case.title[:35] }}… · Due {{ a.due_date | format_date }}</div>
+        </div>
+        <span class="badge" style="background:#fef2f2;color:#b91c1c;">Overdue</span>
+      </a>
+      {% else %}
+      <div class="px-5 py-8 text-center text-sm text-gray-400">No overdue actions</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const statusData   = {{ status_stats   | tojson }};
+const priorityData = {{ priority_stats | tojson }};
+const stateData    = {{ state_stats    | tojson }};
+
+const isDark = () => document.documentElement.classList.contains('dark');
+const textColor = () => isDark() ? '#94a3b8' : '#6b7280';
+const gridColor = () => isDark() ? '#334155' : '#e5e7eb';
+const barColor  = () => isDark() ? '#e2e8f0' : '#111827';
+
+const statusColors = {
+  'Active': '#22c55e', 'New': '#6366f1', 'Closed': '#9ca3af',
+  'Resolved': '#10b981', 'Under Review': '#8b5cf6',
+  'Hearing / Action Pending': '#f59e0b', 'Awaiting Order': '#f97316',
+  'Order Received': '#14b8a6', 'Compliance / Follow-up': '#a855f7',
+  'On Hold': '#eab308', 'Withdrawn': '#6b7280', 'Dismissed': '#ef4444',
+  'Transferred': '#64748b', 'Settled': '#059669', 'Appealed': '#f97316',
+};
+const priorityColors = { Low:'#d1d5db', Medium:'#9ca3af', High:'#f97316', Critical:'#ef4444' };
+
+const legendOpts = () => ({
+  position: 'bottom',
+  labels: { font: { size: 11 }, boxWidth: 12, color: textColor() }
+});
+
+const statusChart = new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: statusData.map(d => d[0]),
+    datasets: [{ data: statusData.map(d => d[1]), backgroundColor: statusData.map(d => statusColors[d[0]] || '#9ca3af'), borderWidth: 2 }]
+  },
+  options: { responsive: true, plugins: { legend: legendOpts() } }
+});
+
+const priorityChart = new Chart(document.getElementById('priorityChart'), {
+  type: 'doughnut',
+  data: {
+    labels: priorityData.map(d => d[0]),
+    datasets: [{ data: priorityData.map(d => d[1]), backgroundColor: priorityData.map(d => priorityColors[d[0]] || '#9ca3af'), borderWidth: 2 }]
+  },
+  options: { responsive: true, plugins: { legend: legendOpts() } }
+});
+
+const stateChart = new Chart(document.getElementById('stateChart'), {
+  type: 'bar',
+  data: {
+    labels: stateData.map(d => d[0]),
+    datasets: [{ label: 'Cases', data: stateData.map(d => d[1]), backgroundColor: barColor(), borderRadius: 4 }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1, color: textColor() }, grid: { color: gridColor() } },
+      x: { ticks: { font: { size: 10 }, color: textColor() }, grid: { color: gridColor() } }
+    }
+  }
+});
+
+// Update chart colors when dark mode toggles
+const observer = new MutationObserver(() => {
+  stateChart.data.datasets[0].backgroundColor = barColor();
+  [statusChart, priorityChart, stateChart].forEach(c => {
+    if (c.options.plugins.legend) c.options.plugins.legend.labels.color = textColor();
+    c.update();
+  });
+});
+observer.observe(document.documentElement, { attributeFilter: ['class'] });
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Actions{% endblock %}
+{% block page_title %}Actions{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="flex flex-wrap gap-2 mb-5">
+  {% for f_id, f_label in [('all','All Actions'),('overdue','Overdue'),('due_soon','Due in 7 days'),('due_today','Due Today')] %}
+  <a href="/actions?filter={{ f_id }}"
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+      {% if current_filter == f_id %}bg-gray-900 text-white{% else %}bg-white border border-gray-300 text-gray-600 hover:bg-gray-50{% endif %}">
+    {{ f_label }}
+    {% if f_id == 'overdue' %}
+    <span class="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5">{{ actions | selectattr('status','equalto','Overdue') | list | length if current_filter == 'overdue' else '' }}</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+    <h3 class="font-semibold text-gray-800">{{ actions | length }} Action{% if actions | length != 1 %}s{% endif %}</h3>
+    <div class="flex gap-2">
+      <select onchange="location.href='/actions?filter={{ current_filter }}&status='+this.value" class="form-input py-1 text-sm">
+        <option value="">All Status</option>
+        {% for s in statuses %}<option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      <select onchange="location.href='/actions?filter={{ current_filter }}&priority='+this.value" class="form-input py-1 text-sm">
+        <option value="">All Priority</option>
+        {% for p in priorities %}<option value="{{ p }}" {% if priority_filter == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="divide-y divide-gray-50">
+    {% for a in actions %}
+    {% set asc = a.status | action_status_color %}
+    {% set pc = a.priority | priority_color %}
+    <div class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+      <!-- Priority indicator -->
+      <div class="w-1 self-stretch rounded-full bg-{{ pc }}-500 flex-shrink-0"></div>
+
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-semibold text-gray-800">{{ a.title }}</span>
+          <span class="badge bg-{{ asc }}-100 text-{{ asc }}-700">{{ a.status }}</span>
+          <span class="badge bg-{{ pc }}-100 text-{{ pc }}-700 hidden sm:inline-flex">{{ a.priority }}</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+          <a href="/cases/{{ a.case_id }}" class="text-gray-800 hover:underline">{{ a.case.case_id }}</a>
+          <span class="truncate max-w-xs">{{ a.case.title }}</span>
+          {% if a.assigned_to_user %}
+          <span><i class="fa-solid fa-user mr-1"></i>{{ a.assigned_to_user.full_name }}</span>
+          {% endif %}
+          {% if a.due_date %}
+          {% set days = a.due_date | days_from_now %}
+          <span class="{% if a.status == 'Overdue' %}text-red-600 font-semibold{% elif days is not none and days <= 3 %}text-orange-600 font-semibold{% endif %}">
+            <i class="fa-solid fa-calendar-day mr-1"></i>Due {{ a.due_date | format_date }}
+            {% if days is not none and a.status != 'Overdue' %}
+              {% if days == 0 %}(Today)
+              {% elif days == 1 %}(Tomorrow)
+              {% elif days < 0 %}({{ days | abs }}d overdue)
+              {% elif days <= 7 %}({{ days }}d)
+              {% endif %}
+            {% endif %}
+          </span>
+          {% endif %}
+        </div>
+        {% if a.description %}
+        <div class="text-xs text-gray-400 mt-1 truncate">{{ a.description }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-2 flex-shrink-0" x-data="{showComplete: false}">
+        {% if a.status not in ['Completed', 'Cancelled'] %}
+        <button @click="showComplete = !showComplete" class="btn-success py-1 px-3 text-xs">
+          <i class="fa-solid fa-check"></i> Complete
+        </button>
+        <div x-show="showComplete" @click.away="showComplete=false"
+          class="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-10 p-4"
+          style="transform: translateY(2rem); position: fixed; right: 2rem;">
+          <form action="/actions/{{ a.id }}/complete" method="post">
+            <label class="form-label">Completion notes (optional)</label>
+            <textarea name="completion_notes" rows="2" class="form-input mb-3"></textarea>
+            <button type="submit" class="btn-success w-full">Mark as Completed</button>
+          </form>
+        </div>
+        {% endif %}
+        <a href="/cases/{{ a.case_id }}?tab=actions" class="text-gray-400 hover:text-gray-600 text-sm">
+          <i class="fa-solid fa-external-link-alt"></i>
+        </a>
+      </div>
+    </div>
+    {% else %}
+    <div class="px-5 py-12 text-center text-gray-400">
+      <i class="fa-solid fa-list-check text-4xl mb-3 block"></i>
+      No actions found.
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

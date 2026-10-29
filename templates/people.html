@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}People{% endblock %}
+{% block page_title %}People{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-5">
+  <div class="text-sm text-gray-500">{{ users | length }} team members</div>
+  {% if current_user.role in ['super_admin', 'org_admin', 'state_admin'] %}
+  <button onclick="document.getElementById('add-user-modal').classList.remove('hidden')" class="btn-primary">
+    <i class="fa-solid fa-user-plus"></i> Add User
+  </button>
+  {% endif %}
+</div>
+
+<!-- Role tabs -->
+<div class="flex gap-2 mb-4 flex-wrap" x-data="{roleFilter:'all'}">
+  {% for r_id, r_label in [('all','All'),('org_admin','Admins'),('state_admin','State Admins'),('case_manager','Case Managers'),('lawyer','Lawyers'),('stakeholder','Stakeholders'),('viewer','Viewers')] %}
+  <button @click="roleFilter='{{ r_id }}'"
+    :class="roleFilter==='{{ r_id }}' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'"
+    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">{{ r_label }}</button>
+  {% endfor %}
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 w-full">
+    {% for u in users %}
+    {% set rl = u.role %}
+    <div class="card p-4 flex items-center gap-4"
+      x-show="roleFilter==='all' || roleFilter==='{{ rl }}' || (roleFilter==='org_admin' && '{{ rl }}'.includes('admin'))">
+      <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-800 text-lg flex-shrink-0">
+        {{ u.full_name[0] }}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-gray-800">{{ u.full_name }}</div>
+        <div class="text-xs text-gray-500">{{ u.email }}</div>
+        <div class="flex items-center gap-2 mt-1">
+          <span class="badge bg-gray-100 text-gray-800 text-xs">{{ u.role | role_label }}</span>
+          {% if u.state %}<span class="badge bg-gray-100 text-gray-600 text-xs">{{ u.state.name }}</span>{% endif %}
+          {% if not u.is_active %}<span class="badge bg-red-100 text-red-600 text-xs">Inactive</span>{% endif %}
+        </div>
+      </div>
+      {% if current_user.role in ['super_admin', 'org_admin'] and current_user.id != u.id %}
+      <form action="/admin/users/{{ u.id }}/toggle-active" method="post">
+        <button type="submit" class="text-xs text-gray-400 hover:text-gray-600">
+          {% if u.is_active %}<i class="fa-solid fa-user-slash" title="Deactivate"></i>
+          {% else %}<i class="fa-solid fa-user-check text-green-500" title="Activate"></i>{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="add-user-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
+    <div class="flex items-center justify-between px-6 py-4 border-b">
+      <h3 class="text-lg font-semibold">Add User</h3>
+      <button onclick="document.getElementById('add-user-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+        <i class="fa-solid fa-times text-xl"></i>
+      </button>
+    </div>
+    <form action="/people/create" method="post" class="p-6 space-y-4">
+      <div>
+        <label class="form-label">Full Name <span class="text-red-500">*</span></label>
+        <input name="full_name" required class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Email <span class="text-red-500">*</span></label>
+        <input type="email" name="email" required class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Password <span class="text-red-500">*</span></label>
+        <input type="password" name="password" required class="form-input">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Role</label>
+          <select name="role" class="form-input">
+            {% for r in roles %}<option value="{{ r }}">{{ r | role_label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">State</label>
+          <select name="state_id" class="form-input">
+            <option value="">All States</option>
+            {% for s in states %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Designation</label>
+        <input name="designation" placeholder="e.g. Senior Advocate" class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Phone</label>
+        <input name="phone" placeholder="+91 9876543210" class="form-input">
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('add-user-modal').classList.add('hidden')" class="btn-secondary">Cancel</button>
+        <button type="submit" class="btn-primary">Create User</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

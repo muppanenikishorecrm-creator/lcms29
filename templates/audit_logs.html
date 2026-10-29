@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs{% endblock %}
+{% block page_title %}Audit Logs{% endblock %}
+
+{% block content %}
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+    <h3 class="font-semibold text-gray-800">System Audit Trail</h3>
+    <div class="text-xs text-gray-400">Last 200 records</div>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-100">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="table-header">Time</th>
+          <th class="table-header">User</th>
+          <th class="table-header">Action</th>
+          <th class="table-header">Case</th>
+          <th class="table-header">Details</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for log in logs %}
+        {% set action_icons = {
+          'CREATE_CASE': 'fa-plus text-green-600',
+          'UPDATE_STATUS': 'fa-arrows-rotate text-blue-600',
+          'ADD_HEARING': 'fa-gavel text-gray-800',
+          'ADD_ACTION': 'fa-list-check text-orange-600',
+          'SET_OUTCOME': 'fa-flag-checkered text-emerald-600',
+        } %}
+        <tr class="hover:bg-gray-50 transition-colors">
+          <td class="table-cell text-xs text-gray-500 whitespace-nowrap">{{ log.created_at | format_date("%d %b %Y, %H:%M") }}</td>
+          <td class="table-cell text-sm">
+            {% if log.user %}
+            <div class="font-medium text-gray-700">{{ log.user.full_name }}</div>
+            <div class="text-xs text-gray-400">{{ log.user.role | role_label }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td class="table-cell">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid {{ action_icons.get(log.action, 'fa-circle-dot text-gray-400') }}"></i>
+              <span class="text-sm font-mono text-gray-700">{{ log.action }}</span>
+            </div>
+          </td>
+          <td class="table-cell text-xs text-gray-800">
+            {% if log.case %}<a href="/cases/{{ log.case_id }}" class="hover:underline">{{ log.case.case_id }}</a>{% else %}—{% endif %}
+          </td>
+          <td class="table-cell text-sm text-gray-500">{{ log.details or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="px-5 py-12 text-center text-gray-400">
+            <i class="fa-solid fa-shield-halved text-4xl mb-3 block"></i>
+            No audit records found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
