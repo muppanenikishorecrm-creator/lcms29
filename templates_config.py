@@ -1,7 +1,8 @@
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
+from pathlib import Path
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
 
 def format_date(value, fmt="%d %b %Y"):
